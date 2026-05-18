@@ -3,10 +3,10 @@ services:
     build:
       context: ./user-service
       dockerfile: Dockerfile
+      network: host
     ports:
       - "8001:8001"
-    env_file:
-      - ./user-service/.env.example
+    # تم حذف env_file المسبب للمشكلة
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./users.db
       - SECRET_KEY=dev-secret-key-change-in-production
@@ -18,7 +18,7 @@ services:
     networks:
       - ecommerce-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -28,10 +28,11 @@ services:
     build:
       context: ./order-service
       dockerfile: Dockerfile
+      network: host
+
     ports:
       - "8002:8002"
-    env_file:
-      - ./order-service/.env.example
+    # تم حذف env_file المسبب للمشكلة
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./orders.db
       - SECRET_KEY=dev-secret-key-change-in-production
@@ -47,7 +48,7 @@ services:
       notification-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=3)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -57,10 +58,11 @@ services:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
+      network: host
+
     ports:
       - "8003:8003"
-    env_file:
-      - ./notification-service/.env.example
+    # تم حذف env_file المسبب للمشكلة
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./notifications.db
       - SECRET_KEY=dev-secret-key-change-in-production
@@ -70,7 +72,7 @@ services:
     networks:
       - ecommerce-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=3)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -85,7 +87,7 @@ services:
         VITE_ORDER_SERVICE_URL: http://localhost:8002
         VITE_NOTIFICATION_SERVICE_URL: http://localhost:8003
     ports:
-      - "80:80"
+      - "8080:80"
     networks:
       - ecommerce-net
     depends_on:
