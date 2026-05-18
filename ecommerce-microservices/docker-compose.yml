@@ -1,0 +1,101 @@
+services:
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./user-service/.env.example
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./users.db
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - SERVICE_NAME=user-service
+      - LOG_LEVEL=INFO
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./order-service/.env.example
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./orders.db
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8003
+      - SERVICE_NAME=order-service
+      - LOG_LEVEL=INFO
+    networks:
+      - ecommerce-net
+    depends_on:
+      user-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    env_file:
+      - ./notification-service/.env.example
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./notifications.db
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - SERVICE_NAME=notification-service
+      - LOG_LEVEL=INFO
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../ecommerce-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_USER_SERVICE_URL: http://localhost:8001
+        VITE_ORDER_SERVICE_URL: http://localhost:8002
+        VITE_NOTIFICATION_SERVICE_URL: http://localhost:8003
+    ports:
+      - "80:80"
+    networks:
+      - ecommerce-net
+    depends_on:
+      user-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+
+networks:
+  ecommerce-net:
+    driver: bridge
