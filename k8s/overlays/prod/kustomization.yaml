@@ -1,0 +1,57 @@
+resources:
+  - namespace.yaml
+  - ../../base
+  - hpa.yaml
+  - pdb.yaml
+
+namespace: prod
+
+patches:
+  - target:
+      kind: Deployment
+      name: user-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  - target:
+      kind: Deployment
+      name: order-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  - target:
+      kind: Deployment
+      name: notification-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+
+        value: 2
+images:
+  - name: ecommerce-microservices-user-service
+    newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/user-service
+    newTag: v1
+
+  - name: ecommerce-microservices-order-service
+    newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/order-service
+    newTag: v1
+
+  - name: ecommerce-microservices-notification-service
+    newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/notification-service
+    newTag: v1
+
+  - name: ecommerce-microservices-frontend
+    newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/frontend
+    newTag: v1

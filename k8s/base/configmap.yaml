@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+  REFRESH_TOKEN_EXPIRE_DAYS: "7"
+  LOG_LEVEL: "INFO"
+
+  USER_DATABASE_URL: "sqlite+aiosqlite:///./users.db"
+  ORDER_DATABASE_URL: "sqlite+aiosqlite:///./orders.db"
+  NOTIFICATION_DATABASE_URL: "sqlite+aiosqlite:///./notifications.db"
+
+  NOTIFICATION_SERVICE_URL: "http://notification-service:8003"

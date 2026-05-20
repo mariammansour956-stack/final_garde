@@ -1,0 +1,18 @@
+resources:
+  - namespace.yaml
+  - ../../base
+  - ingress/ingress.yaml
+
+namespace: dev
+
+patches:
+  - target:
+      kind: Service
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30080

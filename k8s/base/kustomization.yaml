@@ -1,0 +1,7 @@
+resources:
+  - configmap.yaml
+  - secret.yaml
+  - user-service
+  - notification-service
+  - order-service
+  - frontend
