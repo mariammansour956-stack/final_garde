@@ -6,13 +6,13 @@ pipeline {
         AWS_ACCOUNT_ID = '897421226830'
         ECR_REGISTRY   = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-        USER_IMAGE          = "${ECR_REGISTRY}/user-service"
-        ORDER_IMAGE         = "${ECR_REGISTRY}/order-service"
-        NOTIFICATION_IMAGE  = "${ECR_REGISTRY}/notification-service"
-        FRONTEND_IMAGE      = "${ECR_REGISTRY}/frontend"
+        USER_IMAGE         = "${ECR_REGISTRY}/user-service"
+        ORDER_IMAGE        = "${ECR_REGISTRY}/order-service"
+        NOTIFICATION_IMAGE = "${ECR_REGISTRY}/notification-service"
+        FRONTEND_IMAGE     = "${ECR_REGISTRY}/frontend"
 
-        K8S_NAMESPACE = 'prod'
         ALB_DNS = 'shopease-dev-alb-661958777.us-west-1.elb.amazonaws.com'
+        GITOPS_FILE = 'k8s/overlays/prod/kustomization.yaml'
     }
 
     stages {
@@ -27,8 +27,7 @@ pipeline {
                 sh '''
                     docker --version
                     aws --version
-                    kubectl version --client
-                    kubectl get nodes
+                    git --version
                 '''
             }
         }
@@ -82,38 +81,51 @@ pipeline {
             }
         }
 
-        stage('Deploy to EKS') {
+        stage('Update GitOps Manifests') {
             steps {
                 sh '''
-                    kubectl set image deployment/user-service \
-                      user-service=$USER_IMAGE:${BUILD_NUMBER} \
-                      -n $K8S_NAMESPACE
+                    git config user.email "jenkins@shopease.local"
+                    git config user.name "Jenkins GitOps"
 
-                    kubectl set image deployment/order-service \
-                      order-service=$ORDER_IMAGE:${BUILD_NUMBER} \
-                      -n $K8S_NAMESPACE
+                    sed -i '/newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com\\/user-service/{n;s/newTag:.*/newTag: "'$BUILD_NUMBER'"/}' $GITOPS_FILE
+                    sed -i '/newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com\\/order-service/{n;s/newTag:.*/newTag: "'$BUILD_NUMBER'"/}' $GITOPS_FILE
+                    sed -i '/newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com\\/notification-service/{n;s/newTag:.*/newTag: "'$BUILD_NUMBER'"/}' $GITOPS_FILE
+                    sed -i '/newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com\\/frontend/{n;s/newTag:.*/newTag: "'$BUILD_NUMBER'"/}' $GITOPS_FILE
 
-                    kubectl set image deployment/notification-service \
-                      notification-service=$NOTIFICATION_IMAGE:${BUILD_NUMBER} \
-                      -n $K8S_NAMESPACE
+                    echo "Updated GitOps manifest:"
+                    grep -A2 "newName:" $GITOPS_FILE
 
-                    kubectl set image deployment/frontend \
-                      frontend=$FRONTEND_IMAGE:${BUILD_NUMBER} \
-                      -n $K8S_NAMESPACE
+                    git add $GITOPS_FILE
+                    git commit -m "Update prod image tags to build ${BUILD_NUMBER}" || echo "No changes to commit"
                 '''
             }
         }
 
-        stage('Verify Rollout') {
+        stage('Push GitOps Update') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-gitops-token',
+                    usernameVariable: 'GIT_USERNAME',
+                    passwordVariable: 'GIT_TOKEN'
+                )]) {
+                    sh '''
+                        git remote set-url origin https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/mariammansour956-stack/final_garde.git
+                        git push origin HEAD:main
+                    '''
+                }
+            }
+        }
+
+        stage('Wait for Argo CD Sync') {
             steps {
                 sh '''
-                    kubectl rollout status deployment/user-service -n $K8S_NAMESPACE
-                    kubectl rollout status deployment/order-service -n $K8S_NAMESPACE
-                    kubectl rollout status deployment/notification-service -n $K8S_NAMESPACE
-                    kubectl rollout status deployment/frontend -n $K8S_NAMESPACE
+                    echo "Jenkins finished CI and pushed GitOps update."
+                    echo "Argo CD will detect the Git change and sync automatically."
+                    sleep 30
 
-                    kubectl get pods -n $K8S_NAMESPACE
-                    kubectl get ingress -n $K8S_NAMESPACE
+                    kubectl get application shopease-prod -n argocd
+                    kubectl get pods -n prod
+                    kubectl get ingress -n prod
                 '''
             }
         }
@@ -121,10 +133,10 @@ pipeline {
 
     post {
         success {
-            echo 'CI/CD pipeline completed successfully.'
+            echo 'CI completed. GitOps update pushed. Argo CD handles deployment.'
         }
         failure {
-            echo 'CI/CD pipeline failed. Check logs.'
+            echo 'Pipeline failed. Check console output.'
         }
     }
 }
