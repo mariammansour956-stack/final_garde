@@ -7,8 +7,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: user-service
-  minReplicas: 3
-  maxReplicas: 6
+  minReplicas: 1
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:
@@ -26,8 +26,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: order-service
-  minReplicas: 3
-  maxReplicas: 6
+  minReplicas: 1
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:
@@ -45,8 +45,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: notification-service
-  minReplicas: 3
-  maxReplicas: 6
+  minReplicas: 1
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:

@@ -3,7 +3,7 @@ resources:
   - ../../base
   - hpa.yaml
   - pdb.yaml
-
+  - ingress/ingress.yaml
 namespace: prod
 
 patches:
@@ -54,4 +54,4 @@ images:
 
   - name: ecommerce-microservices-frontend
     newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/frontend
-    newTag: v1
+    newTag: v3
