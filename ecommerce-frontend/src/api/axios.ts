@@ -1,10 +1,13 @@
 // import axios from "axios";
 // import { useAuthStore } from "../store/authStore";
 
-// const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || "http://localhost:8001";
-// const ORDER_SERVICE_URL = import.meta.env.VITE_ORDER_SERVICE_URL || "http://localhost:8002";
+// const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || "";
+// const ORDER_SERVICE_URL = import.meta.env.VITE_ORDER_SERVICE_URL || "";
 // const NOTIFICATION_SERVICE_URL =
-//   import.meta.env.VITE_NOTIFICATION_SERVICE_URL || "http://localhost:8003";
+     import.meta.env.VITE_NOTIFICATION_SERVICE_URL || "";
+// 
+// 
+//   
 
 // function createApiInstance(baseURL: string) {
 //   const instance = axios.create({

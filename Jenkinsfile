@@ -11,7 +11,6 @@ pipeline {
         NOTIFICATION_IMAGE = "${ECR_REGISTRY}/notification-service"
         FRONTEND_IMAGE     = "${ECR_REGISTRY}/frontend"
 
-        ALB_DNS = 'shopease-dev-alb-661958777.us-west-1.elb.amazonaws.com'
         GITOPS_FILE = 'k8s/overlays/prod/kustomization.yaml'
     }
 
@@ -51,9 +50,6 @@ pipeline {
                     docker build \
                       -f ecommerce-frontend/Dockerfile.alb \
                       -t frontend:${BUILD_NUMBER} \
-                      --build-arg VITE_USER_SERVICE_URL=http://$ALB_DNS \
-                      --build-arg VITE_ORDER_SERVICE_URL=http://$ALB_DNS \
-                      --build-arg VITE_NOTIFICATION_SERVICE_URL=http://$ALB_DNS \
                       ecommerce-frontend
                 '''
             }
@@ -72,12 +68,14 @@ pipeline {
 
         stage('Push Images to ECR') {
             steps {
-                sh '''
-                    docker push $USER_IMAGE:${BUILD_NUMBER}
-                    docker push $ORDER_IMAGE:${BUILD_NUMBER}
-                    docker push $NOTIFICATION_IMAGE:${BUILD_NUMBER}
-                    docker push $FRONTEND_IMAGE:${BUILD_NUMBER}
-                '''
+                retry(3) {
+                    sh '''
+                        docker push $USER_IMAGE:${BUILD_NUMBER}
+                        docker push $ORDER_IMAGE:${BUILD_NUMBER}
+                        docker push $NOTIFICATION_IMAGE:${BUILD_NUMBER}
+                        docker push $FRONTEND_IMAGE:${BUILD_NUMBER}
+                    '''
+                }
             }
         }
 
@@ -121,6 +119,7 @@ pipeline {
                 sh '''
                     echo "Jenkins finished CI and pushed GitOps update."
                     echo "Argo CD will detect the Git change and sync automatically."
+
                     sleep 30
 
                     kubectl get application shopease-prod -n argocd
