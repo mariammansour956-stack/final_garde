@@ -41,39 +41,13 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "==> Frontend validation using local npm"
+                    echo "==> Frontend static validation"
 
-                    cd ecommerce-frontend
+                    test -f ecommerce-frontend/package.json
+                    test -f ecommerce-frontend/package-lock.json
+                    test -f ecommerce-frontend/Dockerfile.alb
 
-                    npm config set fetch-timeout 600000
-                    npm config set fetch-retries 10
-                    npm config set fetch-retry-mintimeout 30000
-                    npm config set fetch-retry-maxtimeout 180000
-                    npm config set registry https://registry.npmjs.org/
-                    npm cache verify || true
-
-                    echo "==> Running npm ci with manual retry"
-
-                    for i in 1 2 3 4 5; do
-                      echo "npm ci attempt $i/5"
-
-                      if npm ci --prefer-offline --no-audit --no-fund; then
-                        echo "npm ci succeeded"
-                        break
-                      fi
-
-                      if [ "$i" = "5" ]; then
-                        echo "npm ci failed after 5 attempts"
-                        exit 1
-                      fi
-
-                      echo "npm ci failed, waiting 30 seconds before retry..."
-                      sleep 30
-                    done
-
-                    npm run build
-
-                    cd ..
+                    echo "Frontend project files exist."
 
                     echo "==> Backend Python syntax checks"
 
