@@ -67,11 +67,7 @@ pipeline {
                     sh '''
                         set -e
 
-                        echo "==> Preparing source copy for SonarQube scan"
-
-                        SONAR_TMP="/tmp/shopease-sonar-${BUILD_NUMBER}"
-                        rm -rf "$SONAR_TMP"
-                        mkdir -p "$SONAR_TMP"
+                        echo "==> Running SonarQube scan without Docker volume mount"
 
                         tar \
                           --exclude='.git' \
@@ -80,18 +76,22 @@ pipeline {
                           --exclude='.terraform' \
                           --exclude='*.tfstate' \
                           --exclude='*.tfstate.backup' \
-                          -cf - . | tar -xf - -C "$SONAR_TMP"
-
-                        docker run --rm \
-                          --network host \
-                          -e SONAR_HOST_URL="$SONAR_HOST_URL" \
-                          -e SONAR_TOKEN="$SONAR_TOKEN" \
-                          -v "$SONAR_TMP:/usr/src" \
-                          sonarsource/sonar-scanner-cli \
-                          -Dsonar.projectKey=shopease \
-                          -Dsonar.projectName=shopease \
-                          -Dsonar.sources=. \
-                          -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.terraform/**,**/terraform/.terraform/**,**/*.tfstate,**/*.tfstate.backup,**/coverage/**
+                          -cf - . | docker run --rm -i \
+                            --network host \
+                            --entrypoint sh \
+                            -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+                            -e SONAR_TOKEN="$SONAR_TOKEN" \
+                            sonarsource/sonar-scanner-cli \
+                            -c '
+                              mkdir -p /usr/src &&
+                              tar -xf - -C /usr/src &&
+                              cd /usr/src &&
+                              sonar-scanner \
+                                -Dsonar.projectKey=shopease \
+                                -Dsonar.projectName=shopease \
+                                -Dsonar.sources=. \
+                                -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.terraform/**,**/terraform/.terraform/**,**/*.tfstate,**/*.tfstate.backup,**/coverage/**
+                            '
                     '''
                 }
             }
