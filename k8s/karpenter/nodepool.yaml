@@ -1,0 +1,69 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: shopease-default
+spec:
+  amiFamily: AL2023
+
+  amiSelectorTerms:
+    - alias: al2023@latest
+
+  role: KarpenterNodeRole-shopease-dev-eks
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: shopease-dev-eks
+
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: shopease-dev-eks
+
+  tags:
+    Name: shopease-karpenter-node
+    Project: shopease
+    Environment: dev
+    ManagedBy: karpenter
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: shopease-general
+spec:
+  template:
+    metadata:
+      labels:
+        workload-type: karpenter
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: shopease-default
+
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+        - key: kubernetes.io/os
+          operator: In
+          values:
+            - linux
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - on-demand
+
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - t3.medium
+            - t3.large
+
+  limits:
+    cpu: "4"
+
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
