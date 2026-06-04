@@ -44,8 +44,16 @@ stages {
                 echo "==> Frontend validation using local npm"
 
                 cd ecommerce-frontend
-                npm ci
+
+                npm config set fetch-timeout 300000
+                npm config set fetch-retries 5
+                npm config set fetch-retry-mintimeout 20000
+                npm config set fetch-retry-maxtimeout 120000
+                npm config set registry https://registry.npmjs.org/
+
+                npm ci --prefer-offline --no-audit --no-fund
                 npm run build
+
                 cd ..
 
                 echo "==> Backend Python syntax checks"
