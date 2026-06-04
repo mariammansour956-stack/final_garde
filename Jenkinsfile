@@ -1,3 +1,4 @@
+```groovy
 pipeline {
     agent any
 
@@ -38,25 +39,24 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "==> Frontend validation"
-                    cd ecommerce-frontend
-                    npm ci
+                    echo "==> Frontend validation using Node Docker image"
 
-                    if npm run | grep -q "test"; then
-                      npm test -- --run || npm test || true
-                    else
-                      echo "No frontend test script found. Running build validation instead."
-                      npm run build
-                    fi
-
-                    cd ..
+                    docker run --rm \
+                      -v "$PWD/ecommerce-frontend:/app" \
+                      -w /app \
+                      node:20-alpine \
+                      sh -c "npm ci && npm run build"
 
                     echo "==> Backend Python syntax checks"
+
                     for service in user-service order-service notification-service; do
                       echo "Checking $service"
-                      cd ecommerce-microservices/$service
-                      python3 -m compileall .
-                      cd ../../
+
+                      docker run --rm \
+                        -v "$PWD/ecommerce-microservices/$service:/app" \
+                        -w /app \
+                        python:3.11-alpine \
+                        sh -c "python -m compileall ."
                     done
                 '''
             }
@@ -202,3 +202,4 @@ pipeline {
         }
     }
 }
+```
