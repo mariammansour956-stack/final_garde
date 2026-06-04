@@ -38,21 +38,29 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "==> Frontend validation using Node Docker image"
+                    echo "==> Frontend validation using Node Docker image from /tmp"
+
+                    FRONTEND_TMP="/tmp/shopease-frontend-${BUILD_NUMBER}"
+                    rm -rf "$FRONTEND_TMP"
+                    cp -a ecommerce-frontend "$FRONTEND_TMP"
 
                     docker run --rm \
-                      -v "$PWD/ecommerce-frontend:/app" \
+                      -v "$FRONTEND_TMP:/app" \
                       -w /app \
                       node:20-alpine \
                       sh -c "npm ci && npm run build"
 
-                    echo "==> Backend Python syntax checks"
+                    echo "==> Backend Python syntax checks using Docker from /tmp"
 
                     for service in user-service order-service notification-service; do
                       echo "Checking $service"
 
+                      SERVICE_TMP="/tmp/shopease-${service}-${BUILD_NUMBER}"
+                      rm -rf "$SERVICE_TMP"
+                      cp -a "ecommerce-microservices/$service" "$SERVICE_TMP"
+
                       docker run --rm \
-                        -v "$PWD/ecommerce-microservices/$service:/app" \
+                        -v "$SERVICE_TMP:/app" \
                         -w /app \
                         python:3.11-alpine \
                         sh -c "python -m compileall ."
@@ -65,11 +73,28 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
+                        set -e
+
+                        echo "==> Preparing source copy for SonarQube scan"
+
+                        SONAR_TMP="/tmp/shopease-sonar-${BUILD_NUMBER}"
+                        rm -rf "$SONAR_TMP"
+                        mkdir -p "$SONAR_TMP"
+
+                        tar \
+                          --exclude='.git' \
+                          --exclude='node_modules' \
+                          --exclude='dist' \
+                          --exclude='.terraform' \
+                          --exclude='*.tfstate' \
+                          --exclude='*.tfstate.backup' \
+                          -cf - . | tar -xf - -C "$SONAR_TMP"
+
                         docker run --rm \
                           --network host \
                           -e SONAR_HOST_URL="$SONAR_HOST_URL" \
                           -e SONAR_TOKEN="$SONAR_TOKEN" \
-                          -v "$PWD:/usr/src" \
+                          -v "$SONAR_TMP:/usr/src" \
                           sonarsource/sonar-scanner-cli \
                           -Dsonar.projectKey=shopease \
                           -Dsonar.projectName=shopease \
