@@ -161,8 +161,14 @@ pipeline {
         stage('Update GitOps Manifests') {
             steps {
                 sh '''
+                    set -e
+
                     git config user.email "jenkins@shopease.local"
                     git config user.name "Jenkins GitOps"
+
+                    echo "Syncing local workspace with latest origin/main before GitOps update..."
+                    git fetch origin main
+                    git checkout -B main origin/main
 
                     sed -i '/newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com\\/user-service/{n;s/newTag:.*/newTag: "'$BUILD_NUMBER'"/}' $GITOPS_FILE
                     sed -i '/newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com\\/order-service/{n;s/newTag:.*/newTag: "'$BUILD_NUMBER'"/}' $GITOPS_FILE
@@ -186,8 +192,36 @@ pipeline {
                     passwordVariable: 'GIT_TOKEN'
                 )]) {
                     sh '''
+                        set -e
+
                         git remote set-url origin https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/mariammansour956-stack/final_garde.git
-                        git push origin HEAD:main
+
+                        echo "Pushing GitOps update to main with rebase retry..."
+
+                        for i in 1 2 3; do
+                          echo "Push attempt $i/3"
+
+                          git fetch origin main
+
+                          if git rebase origin/main; then
+                            echo "Rebase succeeded"
+                          else
+                            echo "Rebase conflict or failure"
+                            git rebase --abort || true
+                            exit 1
+                          fi
+
+                          if git push origin HEAD:main; then
+                            echo "GitOps update pushed successfully"
+                            exit 0
+                          fi
+
+                          echo "Push failed because remote changed. Retrying..."
+                          sleep 5
+                        done
+
+                        echo "Push failed after 3 attempts"
+                        exit 1
                     '''
                 }
             }
