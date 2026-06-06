@@ -59,6 +59,43 @@ eksctl create iamserviceaccount \
   --region="$AWS_REGION" \
   --override-existing-serviceaccounts || true
 
+
+echo "==> Update AWS Load Balancer Controller IAM role trust policy for current EKS OIDC provider"
+ALB_OIDC_ISSUER="$(aws eks describe-cluster \
+  --region "$AWS_REGION" \
+  --name "$CLUSTER_NAME" \
+  --query "cluster.identity.oidc.issuer" \
+  --output text)"
+
+ALB_OIDC_PROVIDER="${ALB_OIDC_ISSUER#https://}"
+ALB_OIDC_PROVIDER_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/${ALB_OIDC_PROVIDER}"
+
+cat > /tmp/alb-controller-trust-policy.json <<EOF_ALB_TRUST
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "${ALB_OIDC_PROVIDER_ARN}"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "${ALB_OIDC_PROVIDER}:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller",
+          "${ALB_OIDC_PROVIDER}:aud": "sts.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+EOF_ALB_TRUST
+
+aws iam update-assume-role-policy \
+  --role-name "$ALB_CONTROLLER_ROLE_NAME" \
+  --policy-document file:///tmp/alb-controller-trust-policy.json
+
+
 echo "==> Ensure AWS Load Balancer Controller Kubernetes service account exists"
 kubectl create serviceaccount aws-load-balancer-controller \
   -n kube-system \
