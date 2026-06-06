@@ -43,16 +43,16 @@ patches:
 images:
   - name: ecommerce-microservices-user-service
     newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/user-service
-    newTag: "25"
+    newTag: "26"
 
   - name: ecommerce-microservices-order-service
     newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/order-service
-    newTag: "25"
+    newTag: "26"
 
   - name: ecommerce-microservices-notification-service
     newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/notification-service
-    newTag: "25"
+    newTag: "26"
 
   - name: ecommerce-microservices-frontend
     newName: 897421226830.dkr.ecr.us-west-1.amazonaws.com/frontend
-    newTag: "25"
+    newTag: "26"
