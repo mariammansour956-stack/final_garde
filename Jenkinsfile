@@ -187,6 +187,11 @@ pipeline {
                 )]) {
                     sh '''
                         git remote set-url origin https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/mariammansour956-stack/final_garde.git
+
+                        echo "Syncing with latest remote main before push..."
+                        git fetch origin main
+                        git rebase origin/main
+
                         git push origin HEAD:main
                     '''
                 }
