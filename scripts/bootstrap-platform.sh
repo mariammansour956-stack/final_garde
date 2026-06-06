@@ -272,6 +272,25 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --timeout 10m \
   --wait
 
+
+echo "==> Install Monitoring with Prometheus and Grafana"
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo update
+
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --set grafana.adminUser=admin \
+  --set grafana.adminPassword=admin123 \
+  --set grafana.service.type=ClusterIP \
+  --set prometheus.service.type=ClusterIP \
+  --wait \
+  --timeout 10m
+
+kubectl get pods -n monitoring
+
+
 echo "==> Update Jenkins kubeconfig"
 sudo mkdir -p /var/lib/jenkins/.kube
 sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
