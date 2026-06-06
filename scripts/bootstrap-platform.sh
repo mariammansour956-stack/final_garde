@@ -105,7 +105,7 @@ kubectl get pods -n kube-system | grep aws-load-balancer || true
 
 echo "==> Install Argo CD"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 echo "==> Wait for Argo CD pods"
 kubectl wait --for=condition=Ready pod \
@@ -150,6 +150,51 @@ eksctl create iamserviceaccount \
   --approve \
   --role-only || true
 
+
+echo "==> Update Karpenter IAM role trust policy for current EKS OIDC provider"
+OIDC_ISSUER="$(aws eks describe-cluster \
+  --region "$AWS_REGION" \
+  --name "$CLUSTER_NAME" \
+  --query "cluster.identity.oidc.issuer" \
+  --output text)"
+
+OIDC_PROVIDER="${OIDC_ISSUER#https://}"
+OIDC_PROVIDER_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/${OIDC_PROVIDER}"
+KARPENTER_ROLE_NAME="${CLUSTER_NAME}-karpenter"
+KARPENTER_SERVICE_ACCOUNT="karpenter"
+KARPENTER_NAMESPACE="kube-system"
+
+cat > /tmp/karpenter-trust-policy.json <<EOF_TRUST
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "${OIDC_PROVIDER_ARN}"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "${OIDC_PROVIDER}:sub": "system:serviceaccount:${KARPENTER_NAMESPACE}:${KARPENTER_SERVICE_ACCOUNT}",
+          "${OIDC_PROVIDER}:aud": "sts.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+EOF_TRUST
+
+aws iam update-assume-role-policy \
+  --role-name "$KARPENTER_ROLE_NAME" \
+  --policy-document file:///tmp/karpenter-trust-policy.json
+
+kubectl annotate serviceaccount karpenter \
+  -n kube-system \
+  eks.amazonaws.com/role-arn="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${KARPENTER_ROLE_NAME}" \
+  --overwrite || true
+
+
 eksctl create iamidentitymapping \
   --cluster "$CLUSTER_NAME" \
   --region "$AWS_REGION" \
@@ -187,6 +232,7 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --set "settings.clusterName=${CLUSTER_NAME}" \
   --set "settings.interruptionQueue=${CLUSTER_NAME}" \
   --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=${KARPENTER_IAM_ROLE_ARN}" \
+  --timeout 10m \
   --wait
 
 echo "==> Update Jenkins kubeconfig"
