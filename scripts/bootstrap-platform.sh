@@ -7,18 +7,31 @@ AWS_ACCOUNT_ID="897421226830"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TERRAFORM_DIR="${PROJECT_ROOT}/terraform"
 
+ALB_CONTROLLER_ROLE_NAME="AmazonEKSLoadBalancerControllerRole"
+ALB_CONTROLLER_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ALB_CONTROLLER_ROLE_NAME}"
+
 cd "$PROJECT_ROOT"
 
+echo "=================================================="
+echo " Bootstrap ShopEase Platform"
+echo "=================================================="
+
 echo "==> Update kubeconfig"
-aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
+aws eks update-kubeconfig \
+  --region "$AWS_REGION" \
+  --name "$CLUSTER_NAME"
 
 echo "==> Check nodes"
 kubectl get nodes
 
 echo "==> Ensure ECR repositories"
 for repo in user-service order-service notification-service frontend; do
-  aws ecr describe-repositories --region "$AWS_REGION" --repository-names "$repo" >/dev/null 2>&1 || \
-  aws ecr create-repository --region "$AWS_REGION" --repository-name "$repo"
+  aws ecr describe-repositories \
+    --region "$AWS_REGION" \
+    --repository-names "$repo" >/dev/null 2>&1 || \
+  aws ecr create-repository \
+    --region "$AWS_REGION" \
+    --repository-name "$repo"
 done
 
 echo "==> Install metrics-server"
@@ -35,30 +48,60 @@ aws iam create-policy \
   --policy-name AWSLoadBalancerControllerIAMPolicy \
   --policy-document "file://${PROJECT_ROOT}/iam_policy.json" >/dev/null 2>&1 || true
 
-echo "==> Create / update AWS Load Balancer Controller service account"
+echo "==> Create / update AWS Load Balancer Controller IAM service account role"
 eksctl create iamserviceaccount \
   --cluster="$CLUSTER_NAME" \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
-  --role-name AmazonEKSLoadBalancerControllerRole \
+  --role-name "$ALB_CONTROLLER_ROLE_NAME" \
   --attach-policy-arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy" \
   --approve \
   --region="$AWS_REGION" \
   --override-existing-serviceaccounts || true
 
+echo "==> Ensure AWS Load Balancer Controller Kubernetes service account exists"
+kubectl create serviceaccount aws-load-balancer-controller \
+  -n kube-system \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl annotate serviceaccount aws-load-balancer-controller \
+  -n kube-system \
+  eks.amazonaws.com/role-arn="$ALB_CONTROLLER_ROLE_ARN" \
+  --overwrite
+
 echo "==> Install AWS Load Balancer Controller"
 helm repo add eks https://aws.github.io/eks-charts >/dev/null 2>&1 || true
 helm repo update
+
+echo "==> Apply AWS Load Balancer Controller CRDs"
+helm show crds eks/aws-load-balancer-controller | kubectl apply -f -
+
+kubectl wait --for=condition=Established \
+  crd/ingressclassparams.elbv2.k8s.aws \
+  --timeout=120s
+
+kubectl wait --for=condition=Established \
+  crd/targetgroupbindings.elbv2.k8s.aws \
+  --timeout=120s
 
 VPC_ID="$(terraform -chdir="$TERRAFORM_DIR" output -raw vpc_id)"
 
 helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
   -n kube-system \
+  --skip-crds \
   --set clusterName="$CLUSTER_NAME" \
   --set serviceAccount.create=false \
   --set serviceAccount.name=aws-load-balancer-controller \
   --set region="$AWS_REGION" \
   --set vpcId="$VPC_ID"
+
+echo "==> Wait for AWS Load Balancer Controller"
+kubectl rollout status deployment/aws-load-balancer-controller \
+  -n kube-system \
+  --timeout=5m || true
+
+kubectl get deployment -n kube-system aws-load-balancer-controller || true
+kubectl get pods -n kube-system | grep aws-load-balancer || true
 
 echo "==> Install Argo CD"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
@@ -71,7 +114,9 @@ kubectl wait --for=condition=Ready pod \
   --timeout=10m || true
 
 echo "==> Scale down ApplicationSet controller if unstable"
-kubectl scale deployment argocd-applicationset-controller -n argocd --replicas=0 || true
+kubectl scale deployment argocd-applicationset-controller \
+  -n argocd \
+  --replicas=0 || true
 
 echo "==> Apply Argo CD Applications"
 kubectl apply -f argocd/shopease-prod-application.yaml
@@ -152,6 +197,10 @@ sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
 echo "==> Start Jenkins"
 sudo systemctl start jenkins || true
 
-echo "==> Bootstrap completed"
+echo "=================================================="
+echo " Bootstrap completed"
+echo "=================================================="
+
+kubectl get nodes
 kubectl get applications -n argocd || true
 kubectl get pods -n kube-system | grep -E "aws-load-balancer|karpenter|metrics" || true
