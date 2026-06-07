@@ -31,6 +31,9 @@ orders_created_total = Counter(
     ["service"],
 )
 
+# Initialize metric with zero so it appears in /metrics before the first order.
+orders_created_total.labels(service="order-service").inc(0)
+
 
 def _order_to_response(order: Order) -> OrderResponse:
     return OrderResponse(
