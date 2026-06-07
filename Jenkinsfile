@@ -109,11 +109,15 @@ pipeline {
         stage('Build Images') {
             steps {
                 sh '''
-                    docker build -t user-service:${BUILD_NUMBER} ecommerce-microservices/user-service
-                    docker build -t order-service:${BUILD_NUMBER} ecommerce-microservices/order-service
-                    docker build -t notification-service:${BUILD_NUMBER} ecommerce-microservices/notification-service
+                    docker build --no-cache -t user-service:${BUILD_NUMBER} ecommerce-microservices/user-service
+                    docker build --no-cache -t order-service:${BUILD_NUMBER} ecommerce-microservices/order-service
+                    docker build --no-cache -t notification-service:${BUILD_NUMBER} ecommerce-microservices/notification-service
 
-                    docker build \
+                    echo "==> Verify order-service image contains orders_created_total"
+                    docker run --rm order-service:${BUILD_NUMBER} \
+                      sh -c 'grep -n "orders_created_total" /app/app/routers/orders.py'
+
+                    docker build --no-cache \
                       -f ecommerce-frontend/Dockerfile.alb \
                       -t frontend:${BUILD_NUMBER} \
                       ecommerce-frontend
