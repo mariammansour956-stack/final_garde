@@ -279,8 +279,30 @@ helm repo update
 
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 
+echo "==> Apply kube-prometheus-stack CRDs"
+helm show crds prometheus-community/kube-prometheus-stack | kubectl apply --server-side -f -
+
+kubectl wait --for=condition=Established crd/prometheuses.monitoring.coreos.com --timeout=120s
+kubectl wait --for=condition=Established crd/alertmanagers.monitoring.coreos.com --timeout=120s
+kubectl wait --for=condition=Established crd/servicemonitors.monitoring.coreos.com --timeout=120s
+kubectl wait --for=condition=Established crd/prometheusrules.monitoring.coreos.com --timeout=120s
+
+echo "==> Wait for Kubernetes API discovery to recognize Monitoring CRDs"
+for i in {1..30}; do
+  if kubectl api-resources --api-group=monitoring.coreos.com | grep -qi "servicemonitors"; then
+    echo "Monitoring CRDs API is available."
+    break
+  fi
+
+  echo "Waiting for Monitoring API discovery... ($i/30)"
+  sleep 5
+done
+
+kubectl api-resources --api-group=monitoring.coreos.com
+
 helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
+  --skip-crds \
   --set grafana.adminUser=admin \
   --set grafana.adminPassword=admin123 \
   --set grafana.service.type=ClusterIP \
