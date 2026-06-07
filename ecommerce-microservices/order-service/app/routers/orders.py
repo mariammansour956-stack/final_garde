@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from prometheus_client import Counter
 
 from app.database import get_session
 from app.dependencies import get_current_user_id, require_admin
@@ -23,6 +24,12 @@ from app.config import settings
 logger = logging.getLogger(settings.service_name)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+orders_created_total = Counter(
+    "orders_created_total",
+    "Total number of orders created successfully",
+    ["service"],
+)
 
 
 def _order_to_response(order: Order) -> OrderResponse:
@@ -97,6 +104,8 @@ async def create_order(
         message=f"Your order #{created_order.id[:8]} has been placed.",
         metadata={"order_id": created_order.id},
     )
+
+    orders_created_total.labels(service="order-service").inc()
 
     return _order_to_response(created_order)
 

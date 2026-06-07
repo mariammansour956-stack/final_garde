@@ -106,7 +106,7 @@ data:
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "targets": [
             {
-              "expr": "sum(rate(http_requests_total{namespace=\"prod\"}[5m])) by (service)",
+              "expr": "sum(rate(http_requests_total{namespace=\"prod\",handler!=\"/metrics\"}[5m])) by (service)",
               "legendFormat": "{{service}}",
               "refId": "A"
             }
@@ -125,7 +125,7 @@ data:
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "targets": [
             {
-              "expr": "100 * sum(rate(http_requests_total{namespace=\"prod\",status=~\"5..\"}[5m])) by (service) / sum(rate(http_requests_total{namespace=\"prod\"}[5m])) by (service)",
+              "expr": "100 * sum(rate(http_requests_total{namespace=\"prod\",status=~\"5..\"}[5m])) by (service) / sum(rate(http_requests_total{namespace=\"prod\",handler!=\"/metrics\"}[5m])) by (service)",
               "legendFormat": "{{service}}",
               "refId": "A"
             }
@@ -144,7 +144,7 @@ data:
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"prod\"}[5m])) by (le, service))",
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"prod\",handler!=\"/metrics\"}[5m])) by (le, service))",
               "legendFormat": "{{service}}",
               "refId": "A"
             }
