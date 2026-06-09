@@ -1,379 +1,925 @@
-# ShopEase – E-Commerce Platform
+# ShopEase Cloud-Native E-Commerce Platform
 
-A production-ready e-commerce platform built with **FastAPI microservices** (backend) and **React + TypeScript** (frontend), fully containerized with **Docker Compose**.
+ShopEase is a cloud-native e-commerce platform built with FastAPI microservices and a React frontend, deployed on AWS using a full DevOps workflow.
 
-## Architecture
+The project demonstrates a complete production-style pipeline:
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Frontend                          │
-│          React + Vite + Tailwind CSS                 │
-│              nginx (port 80)                         │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│              Docker Network (ecommerce-net)          │
-│                                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│  │  user-service │  │ order-service│  │ notif-svc │  │
-│  │   (port 8001) │  │  (port 8002) │  │(port 8003)│  │
-│  │   FastAPI     │  │   FastAPI    │  │  FastAPI  │  │
-│  │   SQLite      │  │   SQLite     │  │  SQLite   │  │
-│  └──────┬───────┘  └──────┬───────┘  └───────────┘  │
-│         │                  │                          │
-│         └──────────────────┘                          │
-│         (JWT validation via shared SECRET_KEY)        │
-└─────────────────────────────────────────────────────┘
-```
-
-### Services
-
-| Service | Technology | Port | Description |
-|---------|-----------|------|-------------|
-| [`user-service`](ecommerce-microservices/user-service) | FastAPI + SQLite | 8001 | Authentication, user management, JWT tokens |
-| [`order-service`](ecommerce-microservices/order-service) | FastAPI + SQLite | 8002 | Order CRUD, status workflow, revenue stats |
-| [`notification-service`](ecommerce-microservices/notification-service) | FastAPI + SQLite | 8003 | User notifications, read/unread tracking |
-| [`frontend`](ecommerce-frontend) | React + Vite + nginx | 80 | SPA with lazy-loaded routes, dark mode |
+* Microservices architecture
+* Docker image builds
+* Jenkins CI/CD
+* Amazon ECR
+* Amazon EKS
+* Argo CD GitOps deployment
+* AWS Load Balancer Controller
+* Karpenter dynamic node provisioning
+* Prometheus and Grafana monitoring
+* Application-level metrics
+* Security scanning with Trivy
+* Code quality with SonarQube
+* Safe stop, destroy, and rebuild automation
 
 ---
 
-## Prerequisites (Ubuntu)
+## 1. Project Overview
 
-Before running the project, ensure your Ubuntu system has:
+ShopEase is an e-commerce application composed of:
 
-### 1. Docker Engine
+| Component            | Technology           | Port | Description                            |
+| -------------------- | -------------------- | ---: | -------------------------------------- |
+| frontend             | React + Vite + Nginx |   80 | Web UI                                 |
+| user-service         | FastAPI + SQLite     | 8001 | Authentication, users, JWT             |
+| order-service        | FastAPI + SQLite     | 8002 | Orders, status workflow, order metrics |
+| notification-service | FastAPI + SQLite     | 8003 | Notifications and read/unread tracking |
 
-```bash
-# Update package index
-sudo apt-get update
+Each backend service exposes:
 
-# Install prerequisites
-sudo apt-get install -y ca-certificates curl
-
-# Add Docker's official GPG key
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-# Add the repository
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt-get update
-
-# Install Docker Engine
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```text
+/health
+/ready
+/metrics
 ```
 
-### 2. Verify Docker Installation
-
-```bash
-# Check Docker version
-docker --version
-
-# Check Docker Compose version
-docker compose version
-
-# (Optional) Run hello-world to verify
-sudo docker run hello-world
-```
-
-### 3. (Optional) Run Docker Without `sudo`
-
-```bash
-sudo usermod -aG docker $USER
-# Log out and back in, or run: newgrp docker
-```
-
-### 4. System Requirements
-
-- **OS**: Ubuntu 20.04 LTS or later (x86_64 / arm64)
-- **RAM**: Minimum 2 GB (4 GB recommended)
-- **Disk**: ~2 GB free space for Docker images + containers
-- **Network**: Internet connection for pulling base images
+The `/metrics` endpoint is used by Prometheus to collect real application metrics.
 
 ---
 
-## Step-by-Step: Run the Project
+## 2. Final Cloud Architecture
 
-### Step 1 – Clone or Copy the Project
-
-```bash
-# If using Git:
-git clone <your-repo-url> prod-grad-project
-cd prod-grad-project
-
-# Or if files are already on the server, navigate to the project root:
-cd /path/to/prod-grad-project
+```text
+Developer
+  |
+  v
+GitHub Repository
+  |
+  v
+Jenkins CI/CD Pipeline
+  |-- Checkout
+  |-- Static validation
+  |-- SonarQube analysis
+  |-- Docker build
+  |-- Trivy image scan
+  |-- Push images to Amazon ECR
+  |-- Update Kubernetes image tags
+  v
+GitOps Manifests
+  |
+  v
+Argo CD
+  |
+  v
+Amazon EKS
+  |-- frontend
+  |-- user-service
+  |-- order-service
+  |-- notification-service
+  |
+  v
+AWS Load Balancer Controller
+  |
+  v
+Application Load Balancer
+  |
+  v
+Users
 ```
 
-### Step 2 – Verify Project Structure
+Monitoring layer:
 
-Ensure the project root contains these directories/files:
-
+```text
+Prometheus
+  |-- Kubernetes metrics
+  |-- Node metrics
+  |-- Application /metrics
+  |-- Blackbox HTTP probes
+  |
+  v
+Grafana Dashboard
 ```
+
+Autoscaling layer:
+
+```text
+Karpenter
+  |-- Watches pending pods
+  |-- Provisions EC2 nodes dynamically
+  |-- Uses NodePool and EC2NodeClass
+```
+
+---
+
+## 3. Repository Structure
+
+```text
 prod-grad-project/
-├── ecommerce-frontend/       # React frontend
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   ├── package.json
-│   └── src/
-├── ecommerce-microservices/  # Backend services
-│   ├── docker-compose.yml
+├── ecommerce-frontend/
+├── ecommerce-microservices/
 │   ├── user-service/
 │   ├── order-service/
 │   └── notification-service/
+├── k8s/
+│   ├── overlays/
+│   │   └── prod/
+│   ├── monitoring/
+│   │   ├── shopease-app-probes.yaml
+│   │   ├── shopease-app-servicemonitors.yaml
+│   │   └── shopease-application-dashboard.yaml
+│   └── karpenter/
+│       └── scale-test.yaml
+├── terraform/
+├── scripts/
+│   ├── bootstrap-platform.sh
+│   ├── verify-platform.sh
+│   └── stop-costly-resources.sh
+├── Jenkinsfile
 └── README.md
 ```
 
-### Step 3 – Start All Services with Docker Compose
+---
+
+## 4. Local Docker Compose Mode
+
+The original application can still run locally using Docker Compose.
 
 ```bash
-# Navigate to the microservices directory (where docker-compose.yml is)
 cd ecommerce-microservices
-
-# Build images and start all containers in detached mode
 docker compose up --build -d
 ```
 
-**What this does**:
-1. Builds 4 Docker images (3 backend Python services + 1 frontend nginx service)
-2. Creates a shared Docker network (`ecommerce-net`)
-3. Starts containers in dependency order with health checks:
-   - `user-service` + `notification-service` start first
-   - `order-service` starts after both are healthy
-   - `frontend` starts after all 3 backends are healthy
-
-### Step 4 – Monitor Startup
+Check containers:
 
 ```bash
-# Watch container status
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+docker ps
 ```
 
-Expected output:
-```
-NAMES                                            STATUS                          PORTS
-ecommerce-microservices-frontend-1               Up X seconds                    0.0.0.0:80->80/tcp
-ecommerce-microservices-order-service-1          Up X seconds (healthy)          0.0.0.0:8002->8002/tcp
-ecommerce-microservices-user-service-1           Up X seconds (healthy)          0.0.0.0:8001->8001/tcp
-ecommerce-microservices-notification-service-1   Up X seconds (healthy)          0.0.0.0:8003->8003/tcp
-```
-
-All 4 containers should show `Up` and backends should show `(healthy)`.  
-The first startup may take 1–2 minutes while dependencies install.
-
-### Step 5 – Check Logs (if any service fails)
+Test services:
 
 ```bash
-# View logs for a specific service
-docker logs ecommerce-microservices-user-service-1
-docker logs ecommerce-microservices-order-service-1
-docker logs ecommerce-microservices-notification-service-1
-docker logs ecommerce-microservices-frontend-1
-
-# Stream logs from all services
-docker compose logs -f
+curl http://localhost:8001/health
+curl http://localhost:8002/health
+curl http://localhost:8003/health
+curl http://localhost:80
 ```
 
-### Step 6 – Verify the Application is Running
-
-**Test the backend APIs**:
+Stop local environment:
 
 ```bash
-# Health check – user-service
-curl -s http://localhost:8001/health
-
-# Health check – order-service
-curl -s http://localhost:8002/health
-
-# Health check – notification-service
-curl -s http://localhost:8003/health
-
-# Readiness check
-curl -s http://localhost:8001/ready
-```
-
-Expected response from each health endpoint:
-```json
-{"status":"ok","service":"user-service","version":"1.0.0"}
-```
-
-**Test the frontend**:
-
-```bash
-curl -s http://localhost:80 | head -5
-```
-
-Expected response (HTML with Vite-built React app):
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    ...
-```
-
-### Step 7 – Open the Application
-
-Open a web browser and navigate to:
-
-```
-http://<your-server-ip>:80
-```
-
-- If running locally: **http://localhost:80**
-- If running on a remote server: **http://<server-public-ip>:80**
-
----
-
-## API Endpoints
-
-### User Service (`http://localhost:8001`)
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| POST | `/auth/register` | Register new user | No |
-| POST | `/auth/login` | Login (email + password) | No |
-| POST | `/auth/refresh` | Refresh access token | No |
-| GET | `/users/me` | Get current user profile | Yes |
-| PUT | `/users/me` | Update profile | Yes |
-| GET | `/users` | List all users (admin) | Admin |
-| GET | `/users/{id}` | Get user by ID (admin) | Admin |
-| GET | `/health` | Health check | No |
-| GET | `/ready` | Readiness check (DB) | No |
-| GET | `/metrics` | Prometheus metrics | No |
-
-### Order Service (`http://localhost:8002`)
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/orders` | List user's orders | Yes |
-| POST | `/orders` | Create new order | Yes |
-| GET | `/orders/{id}` | Get order by ID | Yes |
-| PUT | `/orders/{id}/cancel` | Cancel order | Yes |
-| PATCH | `/orders/{id}/status` | Update status (admin) | Admin |
-| GET | `/orders/stats` | Order statistics (admin) | Admin |
-| GET | `/health` | Health check | No |
-| GET | `/ready` | Readiness check (DB) | No |
-| GET | `/metrics` | Prometheus metrics | No |
-
-### Notification Service (`http://localhost:8003`)
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/notifications` | List user's notifications | Yes |
-| GET | `/notifications/unread/count` | Unread count | Yes |
-| PATCH | `/notifications/{id}/read` | Mark as read | Yes |
-| PATCH | `/notifications/read-all` | Mark all as read | Yes |
-| DELETE | `/notifications/{id}` | Delete notification | Yes |
-| GET | `/health` | Health check | No |
-| GET | `/ready` | Readiness check (DB) | No |
-| GET | `/metrics` | Prometheus metrics | No |
-
-### Authentication
-
-- **Register**: `POST /auth/register` with `{username, email, full_name, password}`
-- **Login**: `POST /auth/login` with `{email, password}`
-- Both return: `{access_token, refresh_token, token_type: "bearer"}`
-- Use the `access_token` as a `Bearer` token in the `Authorization` header
-- Access tokens expire in 30 minutes, refresh tokens in 7 days
-
----
-
-## Useful Docker Commands
-
-```bash
-# Start all services
-docker compose up -d
-
-# Rebuild and start (after code changes)
-docker compose up --build -d
-
-# Stop all services
 docker compose down
-
-# Stop and remove volumes (deletes databases)
-docker compose down -v
-
-# View logs
-docker compose logs -f
-
-# View logs for a specific service
-docker compose logs user-service -f
-
-# Restart a specific service
-docker compose restart user-service
-
-# Check resource usage
-docker stats
 ```
 
 ---
 
-## Configuration
+## 5. AWS Infrastructure with Terraform
 
-### Environment Variables
+Terraform creates the AWS infrastructure required for the platform.
 
-All environment variables are defined directly in [`docker-compose.yml`](ecommerce-microservices/docker-compose.yml). Key variables:
+Main AWS resources:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SECRET_KEY` | `dev-secret-key-change-in-production` | JWT signing key |
-| `ALGORITHM` | `HS256` | JWT algorithm |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token lifetime |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
-| `DATABASE_URL` | `sqlite+aiosqlite:///./{service}.db` | Database connection |
-| `NOTIFICATION_SERVICE_URL` | `http://notification-service:8003` | For order-service to call notifications |
-| `LOG_LEVEL` | `INFO` | Logging level |
+* VPC
+* Public and private subnets
+* NAT Gateway
+* EKS cluster
+* EKS managed nodes
+* IAM roles and policies
+* OIDC provider
+* ECR repositories
+* Security groups
 
-### Production Hardening
+Create infrastructure:
 
-Before deploying to production, change these defaults:
+```bash
+cd terraform
+terraform apply
+```
 
-1. **`SECRET_KEY`** – Generate a strong random key:
-   ```bash
-   openssl rand -hex 32
-   ```
-2. **`ACCESS_TOKEN_EXPIRE_MINUTES`** – Reduce to 15 for better security
-3. **`allow_origins`** in [`main.py`](ecommerce-microservices/user-service/app/main.py:39) – Restrict to your domain
-4. **Remove `curl`** from Dockerfiles if not using health checks
-5. **Use a managed database** (PostgreSQL) instead of SQLite for production
+Destroy infrastructure:
+
+```bash
+cd terraform
+terraform destroy
+```
 
 ---
 
-## Troubleshooting
+## 6. Platform Bootstrap
 
-### Container exits immediately with code 3
-
-```bash
-docker logs ecommerce-microservices-user-service-1
-```
-
-Common causes:
-- Missing Python dependency (run `pip install -r requirements.txt` inside the container)
-- Import error in application code
-- Database permissions issue
-
-### Health check fails
+After Terraform creates the infrastructure, run:
 
 ```bash
-# Check if curl is installed inside the container
-docker exec ecommerce-microservices-user-service-1 curl --version
-
-# Manually test the health endpoint
-docker exec ecommerce-microservices-user-service-1 curl -f http://localhost:8001/health
+cd ~/Desktop/grade-project2/prod-grad-project
+./scripts/bootstrap-platform.sh
 ```
 
-### Port conflicts
+The script installs and configures:
 
-If port 80, 8001, 8002, or 8003 are already in use, change the host port in [`docker-compose.yml`](ecommerce-microservices/docker-compose.yml):
+* kubeconfig
+* ECR repositories
+* metrics-server
+* AWS Load Balancer Controller
+* Argo CD
+* Karpenter
+* Prometheus
+* Grafana
+* Blackbox Exporter
+* Jenkins kubeconfig access
 
-```yaml
-ports:
-  - "8080:80"   # Change host port 80 → 8080
+The script also includes fixes for:
+
+* AWS Load Balancer Controller CRDs
+* Monitoring CRDs
+* Current EKS OIDC trust policy
+* Karpenter IAM trust policy
+* Argo CD server-side apply conflict handling
+
+---
+
+## 7. Jenkins CI/CD Pipeline
+
+Jenkins is responsible for building, scanning, pushing, and deploying the application.
+
+Pipeline stages:
+
+```text
+Checkout
+Frontend static validation
+Backend validation
+SonarQube analysis
+Login to ECR
+Build Docker images
+Verify order-service metrics code
+Trivy image scan
+Tag images
+Push images to ECR
+Update GitOps manifests
+Push GitOps update
+Wait for Argo CD sync
 ```
+
+Images built:
+
+```text
+user-service
+order-service
+notification-service
+frontend
+```
+
+The pipeline pushes images to Amazon ECR and updates:
+
+```text
+k8s/overlays/prod/kustomization.yaml
+```
+
+Then Argo CD deploys the new version automatically.
+
+Important improvement added:
+
+```text
+Docker builds use --no-cache
+Jenkins verifies that order-service image contains orders_created_total
+```
+
+This prevents old cached images from being deployed.
+
+---
+
+## 8. Security and Quality
+
+### SonarQube
+
+Used for static code analysis and code quality checks.
+
+### Trivy
+
+Used for image vulnerability scanning.
+
+Example:
+
+```bash
+trivy image --severity HIGH,CRITICAL order-service:<tag>
+```
+
+The pipeline scans all service images before pushing them.
+
+---
+
+## 9. GitOps with Argo CD
+
+Argo CD continuously watches Git and syncs Kubernetes manifests to EKS.
+
+Check Argo CD apps:
+
+```bash
+kubectl get applications -n argocd
+```
+
+Expected final state:
+
+```text
+karpenter-config   Synced   Healthy
+shopease-prod      Synced   Healthy
+```
+
+Force refresh if needed:
+
+```bash
+kubectl annotate application shopease-prod -n argocd \
+  argocd.argoproj.io/refresh=hard --overwrite
+```
+
+---
+
+## 10. Kubernetes Production Deployment
+
+Production namespace:
+
+```text
+prod
+```
+
+Check production pods:
+
+```bash
+kubectl get pods -n prod
+```
+
+Expected services:
+
+```text
+frontend
+user-service
+order-service
+notification-service
+```
+
+Check services:
+
+```bash
+kubectl get svc -n prod
+```
+
+Check ingress:
+
+```bash
+kubectl get ingress -n prod
+```
+
+Get the application link:
+
+```bash
+kubectl get ingress shopease-alb-ingress -n prod \
+  -o jsonpath='http://{.status.loadBalancer.ingress[0].hostname}'; echo
+```
+
+---
+
+## 11. AWS Load Balancer Controller
+
+The application is exposed through AWS Load Balancer Controller.
+
+Ingress routes:
+
+| Path             | Backend              |
+| ---------------- | -------------------- |
+| `/`              | frontend             |
+| `/auth`          | user-service         |
+| `/users`         | user-service         |
+| `/orders`        | order-service        |
+| `/notifications` | notification-service |
+
+Check controller:
+
+```bash
+kubectl get pods -n kube-system | grep aws-load-balancer
+```
+
+Check ingress:
+
+```bash
+kubectl describe ingress shopease-alb-ingress -n prod
+```
+
+---
+
+## 12. Monitoring Stack
+
+Monitoring stack:
+
+* Prometheus
+* Grafana
+* Alertmanager
+* kube-state-metrics
+* node-exporter
+* Blackbox Exporter
+* ServiceMonitor
+* Probe
+
+Open Grafana:
+
+```bash
+kubectl port-forward -n monitoring svc/monitoring-grafana 3010:80
+```
+
+URL:
+
+```text
+http://127.0.0.1:3010
+```
+
+Login:
+
+```text
+admin / admin123
+```
+
+Open Prometheus:
+
+```bash
+kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9091:9090
+```
+
+URL:
+
+```text
+http://localhost:9091
+```
+
+---
+
+## 13. Application Monitoring
+
+A custom Grafana dashboard was created:
+
+```text
+ShopEase Application
+```
+
+Dashboard panels:
+
+| Panel                        | Description                               |
+| ---------------------------- | ----------------------------------------- |
+| Application Availability     | HTTP availability using Blackbox Exporter |
+| Synthetic Response Time      | External HTTP probe response time         |
+| Synthetic Error Rate         | Probe failure rate                        |
+| Real Request Rate            | Real request rate from FastAPI metrics    |
+| Real Error Rate              | Real error rate from application metrics  |
+| Real Response Time P95       | 95th percentile response time             |
+| Orders Created - Total       | Total created orders                      |
+| EC2 Cloud Nodes CPU Usage    | EKS node CPU                              |
+| EC2 Cloud Nodes Memory Usage | EKS node memory                           |
+
+---
+
+## 14. Blackbox Exporter
+
+Blackbox Exporter checks service availability through HTTP probes.
+
+Targets:
+
+```text
+frontend
+user-service
+order-service
+notification-service
+ALB public URL
+```
+
+Check probe success:
+
+```bash
+curl -G "http://localhost:9091/api/v1/query" \
+  --data-urlencode 'query=probe_success'
+```
+
+Expected value:
+
+```text
+1
+```
+
+This means the target is reachable.
+
+---
+
+## 15. Real Application Metrics
+
+FastAPI services expose Prometheus metrics through:
+
+```text
+/metrics
+```
+
+ServiceMonitors were added for:
+
+```text
+user-service
+order-service
+notification-service
+```
+
+Check request rate:
+
+```bash
+curl -G "http://localhost:9091/api/v1/query" \
+  --data-urlencode 'query=sum(rate(http_requests_total{namespace="prod",handler!="/metrics"}[5m])) by (service)'
+```
+
+Check response time P95:
+
+```bash
+curl -G "http://localhost:9091/api/v1/query" \
+  --data-urlencode 'query=histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace="prod",handler!="/metrics"}[5m])) by (le, service))'
+```
+
+---
+
+## 16. Orders Created Metric
+
+A custom metric was added to `order-service`:
+
+```text
+orders_created_total
+```
+
+It counts successful order creation events.
+
+The metric is initialized with zero so it appears before the first order:
+
+```python
+orders_created_total.labels(service="order-service").inc(0)
+```
+
+When an order is created:
+
+```python
+orders_created_total.labels(service="order-service").inc()
+```
+
+Check metric:
+
+```bash
+curl -G "http://localhost:9091/api/v1/query" \
+  --data-urlencode 'query=orders_created_total'
+```
+
+Expected result after creating orders:
+
+```text
+orders_created_total = 1, 2, 3, ...
+```
+
+---
+
+## 17. Karpenter Autoscaling
+
+Karpenter is a key part of this project.
+
+It dynamically provisions EC2 worker nodes for EKS based on pending pods.
+
+Instead of keeping extra nodes running all the time, Karpenter watches Kubernetes scheduling needs and creates suitable EC2 capacity only when needed.
+
+Benefits:
+
+* Dynamic node provisioning
+* Faster scaling
+* Better resource utilization
+* Lower cost
+* Cloud-native autoscaling
+
+Check Karpenter:
+
+```bash
+kubectl get pods -n kube-system | grep karpenter
+```
+
+Check resources:
+
+```bash
+kubectl get nodepool
+kubectl get ec2nodeclass
+```
+
+Expected:
+
+```text
+shopease-general   Ready=True
+shopease-default   Ready=True
+```
+
+---
+
+## 18. Karpenter Demo
+
+Scale test file:
+
+```text
+k8s/karpenter/scale-test.yaml
+```
+
+The test creates:
+
+```text
+6 replicas
+500m CPU per pod
+512Mi memory per pod
+nodeSelector: workload-type=karpenter
+```
+
+Apply the demo:
+
+```bash
+kubectl apply -f k8s/karpenter/scale-test.yaml
+```
+
+Watch pods:
+
+```bash
+kubectl get pods -n prod -w
+```
+
+Watch nodes:
+
+```bash
+kubectl get nodes -w
+```
+
+Watch Karpenter logs:
+
+```bash
+kubectl logs -n kube-system deployment/karpenter --tail=100
+```
+
+Delete the demo workload:
+
+```bash
+kubectl delete -f k8s/karpenter/scale-test.yaml
+```
+
+Demo explanation:
+
+```text
+When the scale-test workload cannot be scheduled on existing nodes,
+Karpenter detects the pending pods and provisions additional EC2 capacity.
+After the workload is removed, unused capacity can be consolidated to reduce cost.
+```
+
+---
+
+## 19. Final Verification
+
+Run:
+
+```bash
+./scripts/verify-platform.sh
+```
+
+The script checks:
+
+* Kubernetes context
+* EKS nodes
+* Argo CD applications
+* Production pods
+* Production services
+* Ingress and ALB
+* Platform controllers
+* Karpenter resources
+* Monitoring pods
+* Monitoring services
+* ALB HTTP response
+* Prometheus service
+* Grafana service
+
+Expected final state:
+
+```text
+EKS Nodes Ready
+Argo CD Synced / Healthy
+Production Pods Running
+ALB returns 200 OK
+AWS Load Balancer Controller Running
+Karpenter Running
+Prometheus Running
+Grafana Running
+Blackbox Exporter Running
+```
+
+---
+
+## 20. Stop Costly Resources
+
+To safely stop cloud resources before destroy:
+
+```bash
+./scripts/stop-costly-resources.sh
+```
+
+The script:
+
+* Deletes Argo CD applications
+* Deletes production ingress
+* Waits for ALB deletion
+* Waits for ELB ENIs to disappear
+* Stops Jenkins locally
+* Prepares for Terraform destroy
+
+Then run:
+
+```bash
+cd terraform
+terraform destroy
+```
+
+---
+
+## 21. Destroy Verification
+
+After destroy:
+
+```bash
+aws eks list-clusters --region us-west-1
+```
+
+Expected:
+
+```text
+clusters: []
+```
+
+Check load balancers:
+
+```bash
+aws elbv2 describe-load-balancers --region us-west-1 --output table
+```
+
+Check EC2:
+
+```bash
+aws ec2 describe-instances \
+  --region us-west-1 \
+  --query "Reservations[*].Instances[*].[InstanceId,State.Name,InstanceType,Tags[?Key=='Name'].Value|[0]]" \
+  --output table
+```
+
+Check NAT Gateway:
+
+```bash
+aws ec2 describe-nat-gateways \
+  --region us-west-1 \
+  --query "NatGateways[*].[NatGatewayId,State,VpcId]" \
+  --output table
+```
+
+---
+
+## 22. Rebuild Workflow
+
+To rebuild later:
+
+```bash
+cd terraform
+terraform apply
+```
+
+Then:
+
+```bash
+cd ..
+./scripts/bootstrap-platform.sh
+```
+
+Then run Jenkins:
+
+```text
+Jenkins → shopease-ci-cd → Build Now
+```
+
+Finally:
+
+```bash
+./scripts/verify-platform.sh
+```
+
+---
+
+## 23. Troubleshooting Notes
+
+### ALB Controller CRD issue
+
+If Helm fails with:
+
+```text
+no matches for kind IngressClassParams
+```
+
+Apply CRDs first:
+
+```bash
+helm show crds eks/aws-load-balancer-controller | kubectl apply -f -
+kubectl wait --for=condition=Established crd/ingressclassparams.elbv2.k8s.aws --timeout=120s
+kubectl api-resources | grep -i ingressclassparams
+```
+
+Then install Helm with:
+
+```bash
+--skip-crds
+```
+
+### Monitoring CRD issue
+
+If Prometheus install fails with missing CRDs:
+
+```bash
+helm show crds prometheus-community/kube-prometheus-stack | kubectl apply --server-side -f -
+kubectl wait --for=condition=Established crd/prometheuses.monitoring.coreos.com --timeout=120s
+```
+
+### Grafana port-forward issue
+
+If browser says connection refused:
+
+```bash
+pkill -f "kubectl port-forward" || true
+kubectl port-forward -n monitoring svc/monitoring-grafana 3010:80
+```
+
+Open:
+
+```text
+http://127.0.0.1:3010
+```
+
+### Image cache issue
+
+If Kubernetes runs an image without latest code:
+
+```text
+Use docker build --no-cache
+Verify code inside image before push
+```
+
+The Jenkinsfile now verifies:
+
+```text
+orders_created_total
+```
+
+inside `order-service` image.
+
+---
+
+## 24. Demo Checklist
+
+Before presenting, prepare screenshots or live tabs for:
+
+```text
+1. GitHub repository
+2. Jenkins successful build
+3. Argo CD Synced / Healthy
+4. EKS nodes
+5. Production pods
+6. Ingress and ALB URL
+7. Application UI
+8. Prometheus targets
+9. Grafana ShopEase Application dashboard
+10. Orders Created metric
+11. Karpenter NodePool and EC2NodeClass
+12. Karpenter scale-test demo
+13. verify-platform.sh output
+14. stop-costly-resources.sh script
+```
+
+Useful commands:
+
+```bash
+kubectl get nodes
+kubectl get pods -n prod
+kubectl get svc -n prod
+kubectl get ingress -n prod
+kubectl get applications -n argocd
+kubectl get nodepool
+kubectl get ec2nodeclass
+kubectl get pods -n monitoring
+./scripts/verify-platform.sh
+```
+
+---
+
+## 25. Final Summary
+
+ShopEase started as a Dockerized microservices e-commerce application and was extended into a complete cloud-native DevOps platform.
+
+The final project includes:
+
+* AWS infrastructure with Terraform
+* Kubernetes deployment on EKS
+* Jenkins CI/CD pipeline
+* ECR image registry
+* GitOps deployment with Argo CD
+* ALB public access
+* Karpenter node autoscaling
+* Prometheus and Grafana monitoring
+* Application-level metrics
+* Orders created business metric
+* Safe stop and rebuild automation
+
+This project demonstrates the full lifecycle of a modern DevOps system from code to cloud deployment, monitoring, scaling, troubleshooting, and cost-safe shutdown.
